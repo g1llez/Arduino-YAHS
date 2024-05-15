@@ -3,14 +3,14 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
-#define RELAY_GPIO 4
+#define RELAY_GPIO 4 // GPIO4 = D2
 
 // WiFi parameters to be configured
 const char* ssid = "BenGi-TP2.4"; // Write here your router's username
 const char* password = "Aucl4ir!"; // Write here your router's passward
 
 String srvTemperatureSensor = "192.168.13.216";
-String TempURL = "/get_temp/";
+String srvURL = "/get_temp/";
 #define MAX_TEMP 20
 
 // Number of milliseconds to wait without receiving any data before we give up
@@ -54,48 +54,55 @@ void setup(void)
 
 void loop() {
 
-
     int temperature = getTemperature();
 
-    if ( temperature != -99 ) {
-      updateFan(temperature, MAX_TEMP);
-    }
+    updateFan(temperature, MAX_TEMP);
+
     delay(10000);
+
 }
 
 void updateFan(int CurrentTemp, int TriggerTemp) {
 
-  if ( CurrentTemp > TriggerTemp ) {
+  if ( CurrentTemp == -99 ) {
+    // Temperature unknown, starting fan
+    Serial.println("[FAN] Starting - Temperature unknown");
+    digitalWrite(RELAY_GPIO, HIGH);
+  }
+  else if ( CurrentTemp > TriggerTemp ) {
+    // Temperature higher than trigger, starting fan
+    Serial.println("[FAN] Starting - Temperature : " + String(CurrentTemp));
     digitalWrite(RELAY_GPIO, HIGH);
   } else {
+    // Temperature lower than trigger, stopping fan
+    Serial.println("[FAN] Stopping - Temperature : " + String(CurrentTemp));
     digitalWrite(RELAY_GPIO, LOW);
   }
+
 }
 
-bool getTemperature() {
+int getTemperature() {
 
   // Starting HTTP Client
   WiFiClient client;
   HTTPClient http;  
+  int temperature = -99;
 
-  if (http.begin(client, "http://192.168.13.216/get_temp/")) {
+  if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
 
     // start connection and send HTTP header
-    int httpCode = http.GET();
-    int temperature = -99;
+    int httpCode = http.GET();    
 
     // httpCode will be negative on error
     if (httpCode > 0) {
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
         String payload = http.getString();
-        Serial.println(payload);
         if ( isNumber(payload) ) {          
             temperature = payload.toInt();
         } else {
-          Serial.println("Error while interpreting temperature. Data received : " + payload);
+          Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
         }
-        return temperature;
       }
     } else {
       Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
@@ -107,18 +114,24 @@ bool getTemperature() {
     Serial.println("[HTTP] Unable to connect");
   }
 
+  return temperature;
+
 }
+
 bool isNumber(const String &str) {
 
   // Check if the string is empty
   if (str.length() == 0) {
     return false;
   }
+  
+  size_t start = 0;
+  if (str.charAt(start) == '-') { start = 1; }
 
   // Iterate through each character of the string
-  for (size_t i = 0; i < str.length(); i++) {
+  for (size_t i = start; i < str.length(); i++) {
     // Check if the current character is not a digit
-    if (!isdigit(str.charAt(i))) {
+    if (!isDigit(str.charAt(i))) {
       return false;
     }
   }

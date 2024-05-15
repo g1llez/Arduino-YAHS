@@ -25,7 +25,6 @@ ESP8266WebServer server(80);
 // Temperature and humidity sensor
 DHT11 dht11(2); // GPIO2 = D4
 
-#define MAX_TRIES 1
 int temperature = -99;
 int humidity = -99;
 
@@ -72,6 +71,7 @@ void setup(void)
   server.on("/get_temp/", HTTP_GET, handleSentVar); // when the server receives a request with /data/ in the string then run the handleSentVar function
   server.begin();
 
+  // Starting NTP sync
   timeClient.begin();
 
 }
@@ -81,14 +81,11 @@ void loop() {
   // Updating the time
   timeClient.update();
 
-  delay(5000);
-
-
   // Reading the temperature
-  int x = MAX_TRIES;
-  bool ValueRead = false;
   bool DataExpired = ( timeClient.getEpochTime() - lastUpdate ) > Expiration;
-  while ( (x >= 0) && !ValueRead && DataExpired ) {
+  bool DataRead = false;
+
+  if ( DataExpired ) {
     Serial.println("Data expired, updating");
     int result = dht11.readTemperatureHumidity(temperature, humidity);
     if ( result != 0 ) {
@@ -101,17 +98,15 @@ void loop() {
       digitalWrite(LED_BUILTIN,HIGH);
       delay(250);
       digitalWrite(LED_BUILTIN,LOW);
-      x--;
 
     } else {
-      ValueRead = true;
+      DataRead = true;
       lastUpdate = timeClient.getEpochTime();
     }
-    delay(1000);
 
   }
 
-  if ( !ValueRead && DataExpired ) { temperature = -99; }
+  if ( !DataRead && DataExpired ) { temperature = -99; }
   
   // Check if there's a web client ready
   server.handleClient();
