@@ -82,7 +82,7 @@ void loop() {
   timeClient.update();
 
   // Reading the temperature
-  bool DataExpired = ( timeClient.getEpochTime() - lastUpdate ) > Expiration;
+  bool DataExpired = ( ( timeClient.getEpochTime() - lastUpdate ) > Expiration || temperature == -99 );
   bool DataRead = false;
 
   if ( DataExpired ) {

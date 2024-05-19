@@ -11,7 +11,7 @@ const char* password = "Aucl4ir!"; // Write here your router's passward
 
 String srvTemperatureSensor = "192.168.13.216";
 String srvURL = "/get_temp/";
-#define MAX_TEMP 20
+#define MAX_TEMP 21
 
 // Number of milliseconds to wait without receiving any data before we give up
 const int NetworkTimeout = 30*1000;
