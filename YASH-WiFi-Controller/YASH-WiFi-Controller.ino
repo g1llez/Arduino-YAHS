@@ -6,10 +6,10 @@
 #define RELAY_GPIO 4 // GPIO4 = D2
 
 // WiFi parameters to be configured
-const char* ssid = "BenGi-TP2.4"; // Write here your router's username
+const char* ssid = "BenGi"; // Write here your router's username
 const char* password = "Aucl4ir!"; // Write here your router's passward
 
-String srvTemperatureSensor = "192.168.13.216";
+String srvTemperatureSensor = "192.168.13.59";
 String srvURL = "/get_temp/";
 #define MAX_TEMP 21
 
