@@ -14,8 +14,10 @@ and provide the info on a webserver with the proper parameters
 #include <WiFiUdp.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
+#include <ArduinoOTA.h>
 
 #define DHTTYPE DHT11
+#define DHT11_OFFSET -5.4;
 
 // WiFi parameters
 const char* ssid = "BenGi"; 
@@ -62,20 +64,27 @@ void setup(void)
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
-    delay(5000);
+    delay(1000);
   }
 
   Serial.println("WiFi Connected");
   Serial.print("IP Address : ");
   Serial.println(WiFi.localIP());
+  
+  // Setting auto-reconnect
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
 
   // Starting the web server
-  Serial.println("Starting WebServer");  
-  server.on("/get_temp/", HTTP_GET, handleSentVar); // when the server receives a request with /data/ in the string then run the handleSentVar function
+  Serial.println("Starting WebServer"); 
+  server.on("/get_temp", HTTP_GET, handleSentVar); // when the server receives a request with /get_temp in the string then run the handleSentVar function
   server.begin();
 
   // Starting NTP sync
   timeClient.begin();
+
+  // Setting Arduino OTA
+  ArduinoOTA.begin();
 
 }
 
@@ -91,7 +100,7 @@ void loop() {
   if ( DataExpired ) {
     Serial.println("Data expired, updating");
     delay(2000);
-    temperature = dht.readTemperature();
+    temperature = dht.readTemperature() + DHT11_OFFSET;
     if (isnan(temperature)) {
  
       Serial.println("Error reading temperature");
@@ -117,10 +126,15 @@ void loop() {
   
   // Check if there's a web client ready
   server.handleClient();
-  delay(2000);
+
+  // Handling Arduino OTA
+  ArduinoOTA.handle();
+
+  delay(100);
 
 }
 
 void handleSentVar() {
+  Serial.println(server.client().remoteIP());
   server.send(200, "text/html", String(temperature) );  // return to sender
 }
