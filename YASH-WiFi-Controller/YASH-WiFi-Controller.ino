@@ -2,6 +2,7 @@
 #include <ESP8266HTTPClient.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
 #define RELAY_GPIO 4 // GPIO4 = D2
 
@@ -46,23 +47,31 @@ void setup(void)
   Serial.print("IP Address : ");
   Serial.println(WiFi.localIP());
 
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
+
   // Starting NTP time sync
   timeClient.begin();
 
   delay(5000);
+
+  Serial.println("Starting OTA support");
+  ArduinoOTA.begin();
+
 }
 
 void loop() {
 
-    int temperature = getTemperature();
+    float temperature = getTemperature();
 
     updateFan(temperature, MAX_TEMP);
 
+    ArduinoOTA.handle();
     delay(10000);
 
 }
 
-void updateFan(int CurrentTemp, int TriggerTemp) {
+void updateFan(float CurrentTemp, int TriggerTemp) {
 
   if ( CurrentTemp == -99 ) {
     // Temperature unknown, starting fan
@@ -86,20 +95,31 @@ int getTemperature() {
   // Starting HTTP Client
   WiFiClient client;
   HTTPClient http;  
-  int temperature = -99;
+  float temperature = -99;
+  
+  http.addHeader("Accept", "*/");
+  http.addHeader("User-Agent", "ESP8266");
 
   if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
+    IPAddress ip;
+    ip.fromString("192.168.13.59");
+    if (!client.connect(ip, 80)) {
+      Serial.println("Echec de connection TCP");
+    }
+    Serial.println("http://" + srvTemperatureSensor + srvURL );
+    Serial.println(WiFi.status());
+    http.setTimeout(5000);
 
     // start connection and send HTTP header
     int httpCode = http.GET();    
-
+    Serial.println("http code + " + String(httpCode));
     // httpCode will be negative on error
     if (httpCode > 0) {
       // file found at server
       if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
         String payload = http.getString();
         if ( isNumber(payload) ) {          
-            temperature = payload.toInt();
+            temperature = payload.toFloat();
         } else {
           Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
         }
@@ -124,6 +144,7 @@ bool isNumber(const String &str) {
   if (str.length() == 0) {
     return false;
   }
+  bool DecimalFound = false;
   
   size_t start = 0;
   if (str.charAt(start) == '-') { start = 1; }
@@ -132,7 +153,17 @@ bool isNumber(const String &str) {
   for (size_t i = start; i < str.length(); i++) {
     // Check if the current character is not a digit
     if (!isDigit(str.charAt(i))) {
+
+      // Check if it's the first comma, else it's not a number 
+      if (str.charAt(i) == '.') {
+        if (DecimalFound) {
+          return false;
+        } else {
+           DecimalFound = true;
+        }
+      }
       return false;
+
     }
   }
 
