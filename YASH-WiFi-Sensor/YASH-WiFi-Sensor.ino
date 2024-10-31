@@ -17,7 +17,7 @@ and provide the info on a webserver with the proper parameters
 #include <ArduinoOTA.h>
 
 #define DHTTYPE DHT11
-#define DHT11_OFFSET -5.4;
+#define DHT11_OFFSET -7.6;
 
 // WiFi parameters
 const char* ssid = "BenGi"; 
@@ -37,7 +37,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
 // Set expiration on data read in seconds
-#define Expiration 300
+#define Expiration 5
 
 long lastUpdate = -1;
 float temperature = -99;
@@ -77,7 +77,7 @@ void setup(void)
 
   // Starting the web server
   Serial.println("Starting WebServer"); 
-  server.on("/get_temp", HTTP_GET, handleSentVar); // when the server receives a request with /get_temp in the string then run the handleSentVar function
+  server.on("/get_temp/", HTTP_GET, handleSentVar); // when the server receives a request with /get_temp in the string then run the handleSentVar function
   server.begin();
 
   // Starting NTP sync

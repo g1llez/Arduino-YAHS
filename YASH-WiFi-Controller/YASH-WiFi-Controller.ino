@@ -7,12 +7,16 @@
 #define RELAY_GPIO 4 // GPIO4 = D2
 
 // WiFi parameters to be configured
-const char* ssid = "BenGi"; // Write here your router's username
-const char* password = "Aucl4ir!"; // Write here your router's passward
+const char* ssid = "BenGi"; 
+const char* password = "Aucl4ir!"; 
 
 String srvTemperatureSensor = "192.168.13.59";
 String srvURL = "/get_temp/";
-#define MAX_TEMP 21
+
+#define MAX_TEMP 21.0           // Température minimum désiré
+#define STATE_UPDATE_DELAY 60   // Délais minimum avant un nouveau changement d'état
+
+long lastChange = -1; // Date/Heure du dernier changement
 
 // Number of milliseconds to wait without receiving any data before we give up
 const int NetworkTimeout = 30*1000;
@@ -35,6 +39,8 @@ void setup(void)
   // Starting serial port
   Serial.begin(9600);
 
+  Serial.println("[NET] Connecting to WiFi");
+
   // Connect to WiFi
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -43,54 +49,84 @@ void setup(void)
     delay(1000);
   }
 
-  Serial.println("WiFi Connected");
-  Serial.print("IP Address : ");
+  Serial.println("[NET] WiFi Connected");
+  Serial.print("[NET] IP Address : ");
   Serial.println(WiFi.localIP());
 
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
 
   // Starting NTP time sync
+  Serial.println("[NTP] Starting NTP");
   timeClient.begin();
 
-  delay(5000);
+  delay(1000);
 
-  Serial.println("Starting OTA support");
+  Serial.println("[OTA] Starting OTA support");
   ArduinoOTA.begin();
 
 }
 
 void loop() {
 
-    float temperature = getTemperature();
+    // Updating the time with NTP
+    timeClient.update();
 
-    updateFan(temperature, MAX_TEMP);
+    bool DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY );
+
+    if (DataExpired) {
+       
+      Serial.println("[MAIN] State change delay expired, getting temperature and updating fan status if required");
+
+      float temperature = getTemperature();
+
+      updateFan(temperature, MAX_TEMP);
+
+      lastChange = timeClient.getEpochTime();
+
+    }
 
     ArduinoOTA.handle();
-    delay(10000);
+
+    delay(1000);
 
 }
 
-void updateFan(float CurrentTemp, int TriggerTemp) {
+void updateFan(float CurrentTemp, float TriggerTemp) {
+
+  uint8_t DesireValue = HIGH;
+  //char status[] = {""};
+  String status ="";
 
   if ( CurrentTemp == -99 ) {
     // Temperature unknown, starting fan
-    Serial.println("[FAN] Starting - Temperature unknown");
-    digitalWrite(RELAY_GPIO, HIGH);
+    status = "[FAN] Temperature unknown";
+    DesireValue = HIGH;
   }
-  else if ( CurrentTemp > TriggerTemp ) {
-    // Temperature higher than trigger, starting fan
-    Serial.println("[FAN] Starting - Temperature : " + String(CurrentTemp));
-    digitalWrite(RELAY_GPIO, HIGH);
+  else if ( CurrentTemp < TriggerTemp ) {
+    // Temperature lower than trigger, starting fan
+    status = "[FAN] Temperature : " + String(CurrentTemp) + " Trigger : " + String(TriggerTemp);
+    DesireValue = HIGH;
   } else {
     // Temperature lower than trigger, stopping fan
-    Serial.println("[FAN] Stopping - Temperature : " + String(CurrentTemp));
-    digitalWrite(RELAY_GPIO, LOW);
+    status = "[FAN] Temperature : " + String(CurrentTemp) + " Trigger : " + String(TriggerTemp);
+    DesireValue = LOW;
   }
+
+  status = status + " State : ";
+
+  if ( digitalRead(RELAY_GPIO) != DesireValue ) {
+    status += DesireValue ? "Starting" : "Stopping";
+    digitalWrite(RELAY_GPIO, DesireValue);
+  } else {
+    status += DesireValue ? "Running" : "Stopped";
+  }
+  
+  Serial.println(status);
 
 }
 
-int getTemperature() {
+float getTemperature() {
 
   // Starting HTTP Client
   WiFiClient client;
@@ -99,20 +135,13 @@ int getTemperature() {
   
   http.addHeader("Accept", "*/");
   http.addHeader("User-Agent", "ESP8266");
+  http.setTimeout(5000);
 
   if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
-    IPAddress ip;
-    ip.fromString("192.168.13.59");
-    if (!client.connect(ip, 80)) {
-      Serial.println("Echec de connection TCP");
-    }
-    Serial.println("http://" + srvTemperatureSensor + srvURL );
-    Serial.println(WiFi.status());
-    http.setTimeout(5000);
 
     // start connection and send HTTP header
     int httpCode = http.GET();    
-    Serial.println("http code + " + String(httpCode));
+    
     // httpCode will be negative on error
     if (httpCode > 0) {
       // file found at server
@@ -144,6 +173,7 @@ bool isNumber(const String &str) {
   if (str.length() == 0) {
     return false;
   }
+
   bool DecimalFound = false;
   
   size_t start = 0;
@@ -161,8 +191,10 @@ bool isNumber(const String &str) {
         } else {
            DecimalFound = true;
         }
+      } 
+      else {
+        return false;
       }
-      return false;
 
     }
   }
