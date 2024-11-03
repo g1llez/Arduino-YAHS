@@ -1,27 +1,36 @@
-#include "ESP8266WiFi.h"
+/* 
+Author: Gilles Auclair
+Date: 2024-11-03
+
+This WiFi modules reads the temperature over the network
+and if it's unknown or above the threshold, the relay will
+activate
+
+*/
+
+#include "params.h"
+#include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
+#include <ESP8266WebServer.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 
+//const char* ssid = "MySSID"; 
+//const char* password = "MyPass"; 
+
 #define RELAY_GPIO 4 // GPIO4 = D2
 
-// WiFi parameters to be configured
-const char* ssid = "BenGi"; 
-const char* password = "Aucl4ir!"; 
-
-String srvTemperatureSensor = "192.168.13.59";
+// String srvTemperatureSensor = "SensorIPAddress";
 String srvURL = "/get_temp/";
 
-#define MAX_TEMP 21.0           // Température minimum désiré
-#define STATE_UPDATE_DELAY 60   // Délais minimum avant un nouveau changement d'état
+// WiFi Server
+ESP8266WebServer server(80);
+
+#define MAX_TEMP 22.0           // Température minimum désiré
+#define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
 
 long lastChange = -1; // Date/Heure du dernier changement
-
-// Number of milliseconds to wait without receiving any data before we give up
-const int NetworkTimeout = 30*1000;
-// Number of milliseconds to wait if no data is available before trying again
-const int NetworkDelay = 1000;
 
 // NTP Config
 WiFiUDP ntpUDP;
@@ -29,6 +38,9 @@ WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
 // no offset
 NTPClient timeClient(ntpUDP);
+
+float LastTemp = -99;
+int LastCode = -99;
 
 void setup(void)
 { 
@@ -60,6 +72,11 @@ void setup(void)
   Serial.println("[NTP] Starting NTP");
   timeClient.begin();
 
+  // Starting the web server
+  Serial.println("Starting WebServer"); 
+  server.on("/", HTTP_GET, handleSentVar);
+  server.begin();
+
   delay(1000);
 
   Serial.println("[OTA] Starting OTA support");
@@ -78,14 +95,18 @@ void loop() {
        
       Serial.println("[MAIN] State change delay expired, getting temperature and updating fan status if required");
 
-      float temperature = getTemperature();
+      LastTemp = getTemperature();
 
-      updateFan(temperature, MAX_TEMP);
+      updateFan(LastTemp, MAX_TEMP);
 
       lastChange = timeClient.getEpochTime();
 
     }
 
+    // Check if there's a web client ready
+    server.handleClient();
+
+    // Handle OTA
     ArduinoOTA.handle();
 
     delay(1000);
@@ -132,16 +153,14 @@ float getTemperature() {
   WiFiClient client;
   HTTPClient http;  
   float temperature = -99;
-  
-  http.addHeader("Accept", "*/");
-  http.addHeader("User-Agent", "ESP8266");
-  http.setTimeout(5000);
+
 
   if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
 
     // start connection and send HTTP header
     int httpCode = http.GET();    
-    
+    LastCode = httpCode;
+
     // httpCode will be negative on error
     if (httpCode > 0) {
       // file found at server
@@ -201,4 +220,9 @@ bool isNumber(const String &str) {
 
   return true; // All characters are digits
 
+}
+
+void handleSentVar() {
+  Serial.println(server.client().remoteIP());
+  server.send(200, "text/html", String(LastCode) );  // return to sender
 }

@@ -1,13 +1,13 @@
 /* 
 Author: Gilles Auclair
-Date: 2024-10-29
+Date: 2024-11-03
 
 This WiFi modules reads the temperature and humidity
 and provide the info on a webserver with the proper parameters
 
 */
 
-
+#include "params.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <NTPClient.h>
@@ -16,12 +16,11 @@ and provide the info on a webserver with the proper parameters
 #include <DHT.h>
 #include <ArduinoOTA.h>
 
+//const char* ssid = "MySSID"; 
+//const char* password = "MyPass"; 
+
 #define DHTTYPE DHT11
 #define DHT11_OFFSET -7.6;
-
-// WiFi parameters
-const char* ssid = "BenGi"; 
-const char* password = "Aucl4ir!"; 
 
 // WiFi Server
 ESP8266WebServer server(80);
@@ -56,7 +55,6 @@ void setup(void)
 
   // Preparing the serial debug console
   Serial.begin(9600);
-  delay(1000);
 
   // Connecting to WiFi
   Serial.println("Connecting to WiFi");
@@ -77,7 +75,7 @@ void setup(void)
 
   // Starting the web server
   Serial.println("Starting WebServer"); 
-  server.on("/get_temp/", HTTP_GET, handleSentVar); // when the server receives a request with /get_temp in the string then run the handleSentVar function
+  server.on("/get_temp/", HTTP_GET, handleHTTPGetTemp);
   server.begin();
 
   // Starting NTP sync
@@ -85,6 +83,8 @@ void setup(void)
 
   // Setting Arduino OTA
   ArduinoOTA.begin();
+
+  delay(1000);
 
 }
 
@@ -98,26 +98,21 @@ void loop() {
   bool DataRead = false;
 
   if ( DataExpired ) {
+
     Serial.println("Data expired, updating");
-    delay(2000);
     temperature = dht.readTemperature() + DHT11_OFFSET;
+
     if (isnan(temperature)) {
  
       Serial.println("Error reading temperature");
       temperature = -99;
- 
-      digitalWrite(LED_BUILTIN,HIGH);
-      delay(250);
-      digitalWrite(LED_BUILTIN,LOW);
-      delay(100);
-      digitalWrite(LED_BUILTIN,HIGH);
-      delay(250);
-      digitalWrite(LED_BUILTIN,LOW);
 
     } else {
+
       Serial.println("Temperature : " + String(temperature));
       DataRead = true;
       lastUpdate = timeClient.getEpochTime();
+
     }
 
   }
@@ -130,11 +125,11 @@ void loop() {
   // Handling Arduino OTA
   ArduinoOTA.handle();
 
-  delay(100);
+  delay(1000);
 
 }
 
-void handleSentVar() {
+void handleHTTPGetTemp() {
   Serial.println(server.client().remoteIP());
   server.send(200, "text/html", String(temperature) );  // return to sender
 }
