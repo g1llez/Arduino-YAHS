@@ -27,7 +27,7 @@ String srvURL = "/get_temp/";
 // WiFi Server
 ESP8266WebServer server(80);
 
-#define MAX_TEMP 22.0           // Température minimum désiré
+#define MAX_TEMP 23.0           // Température minimum désiré
 #define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
 
 long lastChange = -1; // Date/Heure du dernier changement
@@ -116,7 +116,6 @@ void loop() {
 void updateFan(float CurrentTemp, float TriggerTemp) {
 
   uint8_t DesireValue = HIGH;
-  //char status[] = {""};
   String status ="";
 
   if ( CurrentTemp == -99 ) {
@@ -153,30 +152,43 @@ float getTemperature() {
   WiFiClient client;
   HTTPClient http;  
   float temperature = -99;
-
+  http.setTimeout(10000);
 
   if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
 
     // start connection and send HTTP header
-    int httpCode = http.GET();    
+    int httpCode;    
+    int retry = 0;
     LastCode = httpCode;
 
-    // httpCode will be negative on error
-    if (httpCode > 0) {
-      // file found at server
-      if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-        String payload = http.getString();
-        if ( isNumber(payload) ) {          
-            temperature = payload.toFloat();
-        } else {
-          Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
+    do {
+      httpCode = http.GET();
+      if (httpCode > 0) {
+        
+        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+          String payload = http.getString();
+           if ( isNumber(payload) ) {          
+               temperature = payload.toFloat();               
+           } else {
+             Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
+           }
         }
+        else {
+           Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        }
+        break;
       }
-    } else {
-      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-    }
+      delay(1000);
+      retry++;
+      
+    } while (retry < 3);
 
+    LastCode = httpCode;  
     http.end();
+
+    if (retry > 3) {
+      Serial.println("[HTTP] Unable to connect. HTTP Code : " + String(httpCode));
+    }
 
   } else {
     Serial.println("[HTTP] Unable to connect");
