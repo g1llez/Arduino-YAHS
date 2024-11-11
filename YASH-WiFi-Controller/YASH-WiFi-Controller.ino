@@ -131,8 +131,9 @@ void loop() {
       getSNMP();
 
       LastTemp = getTemperature();
-      strcpy(debug, ifTemperature);
-      LastTemp = atof(ifTemperature);
+      //strcpy(debug, ifTemperature);
+      dtostrf(LastTemp, 7, 2, debug);
+      //LastTemp = atof(ifTemperature);
       updateFan(LastTemp, MAX_TEMP);
 
       lastChange = timeClient.getEpochTime();
@@ -223,7 +224,7 @@ float getTemperature() {
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
           String payload = http.getString();
            if ( isNumber(payload) ) {          
-               temperature = payload.toFloat() / 100;               
+               temperature = payload.toFloat();               
            } else {
              Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
            }
