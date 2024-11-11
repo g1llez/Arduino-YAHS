@@ -15,9 +15,30 @@ activate
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <Arduino_SNMP_Manager.h>
 
 //const char* ssid = "MySSID"; 
 //const char* password = "MyPass"; 
+
+// SNMP
+const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
+IPAddress myIP(172, 16, 20, 105);
+IPAddress remoteIP(172, 16, 20, 106);
+const char *community = "public";
+const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
+#define OID_TEMP ".1"
+WiFiUDP snmpUDP;
+ValueCallback *callbackTemperature;
+char* ifTemperature;
+char fullOID[50];
+SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
+SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
+
+// Fonction pour construire le OID complet
+const char* getFullOID(const char* subOID) {
+    snprintf(fullOID, sizeof(fullOID), "%s%s", OID_YASH, subOID);
+    return fullOID;
+}
 
 #define RELAY_GPIO 4 // GPIO4 = D2
 
@@ -27,7 +48,7 @@ String srvURL = "/get_temp/";
 // WiFi Server
 ESP8266WebServer server(80);
 
-#define MAX_TEMP 23.0           // Température minimum désiré
+#define MAX_TEMP 21.5            // Température minimum désiré
 #define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
 
 long lastChange = -1; // Date/Heure du dernier changement
@@ -41,6 +62,8 @@ NTPClient timeClient(ntpUDP);
 
 float LastTemp = -99;
 int LastCode = -99;
+
+char debug[50] = {0};
 
 void setup(void)
 { 
@@ -75,12 +98,20 @@ void setup(void)
   // Starting the web server
   Serial.println("Starting WebServer"); 
   server.on("/", HTTP_GET, handleSentVar);
+  server.on("/debug/", HTTP_GET, handleHTTPDebug);
   server.begin();
 
-  delay(1000);
+  // Starting SNMP
+  snmp.setUDP(&snmpUDP); // give snmp a pointer to the UDP object
+  snmp.begin();      // start the SNMP Manager
+
+  const char* temperatureOID = getFullOID(OID_TEMP);
+  callbackTemperature = snmp.addStringHandler(myIP, temperatureOID, &ifTemperature);
 
   Serial.println("[OTA] Starting OTA support");
   ArduinoOTA.begin();
+
+  delay(1000);
 
 }
 
@@ -95,8 +126,11 @@ void loop() {
        
       Serial.println("[MAIN] State change delay expired, getting temperature and updating fan status if required");
 
-      LastTemp = getTemperature();
+      getSNMP();
 
+      LastTemp = getTemperature();
+      /*strcpy(debug, ifTemperature);
+      LastTemp = atof(ifTemperature);*/
       updateFan(LastTemp, MAX_TEMP);
 
       lastChange = timeClient.getEpochTime();
@@ -109,7 +143,26 @@ void loop() {
     // Handle OTA
     ArduinoOTA.handle();
 
+
+
     delay(1000);
+
+}
+
+void getSNMP()
+{
+  // Build a SNMP get-request add each OID to the request
+    // Add temperature to OID
+  const char* temperatureOID = getFullOID(OID_TEMP);
+  
+  snmpRequest.addOIDPointer(callbackTemperature);
+  
+  snmpRequest.setIP(remoteIP); // IP of the listening MCU
+  // snmpRequest.setPort(501);  // Default is UDP port 161 for SNMP. But can be overriden if necessary.
+  snmpRequest.setUDP(&snmpUDP);
+  snmpRequest.setRequestID(rand() % 5555);
+  snmpRequest.sendTo(myIP);
+  snmpRequest.clearOIDList();
 
 }
 
@@ -151,7 +204,7 @@ float getTemperature() {
   // Starting HTTP Client
   WiFiClient client;
   HTTPClient http;  
-  float temperature = -99;
+  float temperature = 9999;
   http.setTimeout(10000);
 
   if (http.begin(client, "http://" + srvTemperatureSensor + srvURL )) {
@@ -168,7 +221,7 @@ float getTemperature() {
         if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
           String payload = http.getString();
            if ( isNumber(payload) ) {          
-               temperature = payload.toFloat();               
+               temperature = payload.toFloat() / 100;               
            } else {
              Serial.println("[HTTP] Error while interpreting temperature. Data received : " + payload);
            }
@@ -237,4 +290,10 @@ bool isNumber(const String &str) {
 void handleSentVar() {
   Serial.println(server.client().remoteIP());
   server.send(200, "text/html", String(LastCode) );  // return to sender
+}
+
+
+void handleHTTPDebug() {
+  Serial.println(server.client().remoteIP());
+  server.send(200, "text/html", debug);  // return to sender
 }

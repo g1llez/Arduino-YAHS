@@ -1,0 +1,42 @@
+YASH-WIFI-SENSOR-MIB DEFINITIONS ::= BEGIN
+
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE, enterprises
+        FROM SNMPv2-SMI
+    TEXTUAL-CONVENTION, DisplayString
+        FROM SNMPv2-TC;
+
+yashWifiSensor MODULE-IDENTITY
+    LAST-UPDATED "2023-05-11 00:00:00"
+    ORGANIZATION "YASH"
+    CONTACT-INFO "support@yash.com"
+    DESCRIPTION
+        "MIB for the YASH WiFi Sensor device"
+    ::= { enterprises 12345 }
+
+-- OIDs
+
+yashWifiSensorObjects OBJECT IDENTIFIER ::= { yashWifiSensor 1 }
+
+temperature OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE(5))
+    DISPLAY-HINT "d-2"
+    UNITS       "degC"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Current temperature reading from the sensor. 
+        If the value is negative, it will be prefixed with a '-'."
+    ::= { yashWifiSensorObjects 1 }
+
+humidity OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE(5))
+    DISPLAY-HINT "d-2"  
+    UNITS       "%"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Current humidity reading from the sensor."
+    ::= { yashWifiSensorObjects 2 }
+
+END
