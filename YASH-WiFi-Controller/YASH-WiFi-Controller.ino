@@ -29,7 +29,7 @@ const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
 #define OID_TEMP ".1"
 WiFiUDP snmpUDP;
 ValueCallback *callbackTemperature;
-char* ifTemperature;
+char* ifTemperature = new char[6];
 char fullOID[50];
 SNMPManager snmp = SNMPManager(community);             // Starts an SNMPManager to listen to replies to get-requests
 SNMPGet snmpRequest = SNMPGet(community, snmpVersion); // Starts an SNMPGet instance to send requests
@@ -74,6 +74,8 @@ void setup(void)
   // Starting serial port
   Serial.begin(9600);
 
+  strcpy(ifTemperature, "99.99");
+  
   Serial.println("[NET] Connecting to WiFi");
 
   // Connect to WiFi
@@ -129,8 +131,8 @@ void loop() {
       getSNMP();
 
       LastTemp = getTemperature();
-      /*strcpy(debug, ifTemperature);
-      LastTemp = atof(ifTemperature);*/
+      strcpy(debug, ifTemperature);
+      LastTemp = atof(ifTemperature);
       updateFan(LastTemp, MAX_TEMP);
 
       lastChange = timeClient.getEpochTime();
