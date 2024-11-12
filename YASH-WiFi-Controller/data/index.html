@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord d'état</title>
+    <style>
+        /* Même styles que précédemment */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tableau de bord d'état</h1>
+
+        <div class="status-card">
+            <h2>Ventilateur</h2>
+            <div class="status-item">
+                <span>État :</span>
+                <span id="fan-status">N/A</span>
+            </div>
+            <div class="status-item">
+                <span>Dernière température :</span>
+                <span id="last-temperature">N/A</span>
+            </div>
+            <div class="status-item">
+                <span>Température de déclenchement :</span>
+                <span id="trigger-temperature">N/A</span>
+            </div>
+            <div class="status-item">
+                <span>Données expirées :</span>
+                <span id="data-expired">N/A</span>
+            </div>
+            <div class="status-item">
+                <span>Délai d'expiration :</span>
+                <span id="expiration-delay">N/A</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus(data) {
+            document.getElementById('fan-status').textContent = data.fanStatus ? 'En marche' : 'Arrêté';
+            document.getElementById('last-temperature').textContent = data.lastTemperature !== 9999 ? data.lastTemperature + '°C' : 'N/A';
+            document.getElementById('trigger-temperature').textContent = data.triggerTemperature + '°C';
+            document.getElementById('data-expired').textContent = data.dataExpired ? 'Oui' : 'Non';
+            document.getElementById('expiration-delay').textContent = data.expirationDelay + 's';
+        }
+
+        // Récupérer les données du serveur toutes les 5 secondes
+        function fetchStatus() {
+            fetch('/') // Endpoint où le serveur Arduino envoie les données
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(data);
+                })
+                .catch(error => console.error('Erreur lors de la récupération des données :', error));
+        }
+
+        // Lancer la mise à jour initiale et ensuite toutes les 5 secondes
+        fetchStatus();
+        setInterval(fetchStatus, 5000);
+    </script>
+</body>
+</html>

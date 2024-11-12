@@ -16,9 +16,12 @@ activate
 #include <ArduinoOTA.h>
 #include <Arduino_SNMP_Manager.h>
 #include "params.h"
+#include <FS.h>
 
 //const char* ssid = "MySSID"; 
 //const char* password = "MyPass"; 
+
+#define FORMAT_SPIFFS_IF_FAILED true
 
 // SNMP
 const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
@@ -63,6 +66,9 @@ NTPClient timeClient(ntpUDP);
 float LastTemp = 99.99;
 // Date/time of the last change
 long lastChange = -1;
+// Fan status
+bool fanRunning = false;
+bool DataExpired = true;
 
 char debug[100] = {0};
 
@@ -77,6 +83,12 @@ void setup(void)
 
   strcpy(ifTemperature, "99.99");
   
+  if (!SPIFFS.begin()) {
+    Serial.println("SPIFFS Mount Failed");
+    strcpy(debug, "SPIFFS Mount Failed");
+    return;
+  }
+
   Serial.println("[NET] Connecting to WiFi");
 
   // Connect to WiFi
@@ -100,7 +112,8 @@ void setup(void)
 
   // Starting the web server
   Serial.println("Starting WebServer"); 
-  server.on("/debug/", HTTP_GET, handleHTTPDebug);
+  server.on("/index.html", HTTP_GET, handleHTTPIndex);
+  server.on("/", HTTP_GET, handleHTTPJSON);
   server.begin();
 
   // Starting SNMP
@@ -124,8 +137,10 @@ void loop() {
     // Updating the time with NTP
     timeClient.update();
 
-    bool DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY || LastTemp == 99.99 );
+    int LastTempInt = (int)(LastTemp * 100);
 
+    DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY || LastTempInt == 9999 );
+    
     if (DataExpired) {
        
       Serial.println("[MAIN] State change delay expired, getting temperature and updating fan status if required");
@@ -138,8 +153,6 @@ void loop() {
       updateFan(LastTemp, MAX_TEMP);
 
       lastChange = timeClient.getEpochTime();
-
-      //snprintf(debug, sizeof(debug), "Temp %s : Last changed: %s", ifTemperature, lastChange);
 
     }
 
@@ -175,8 +188,9 @@ void updateFan(float CurrentTemp, float TriggerTemp) {
 
   uint8_t DesireValue = HIGH;
   String status ="";
+  int CurrentTempInt = (int)(LastTemp * 100);
 
-  if ( CurrentTemp == 99.99 ) {
+  if ( CurrentTempInt == 9999 ) {
     // Temperature unknown, starting fan
     status = "[FAN] Temperature unknown";
     DesireValue = HIGH;
@@ -196,6 +210,7 @@ void updateFan(float CurrentTemp, float TriggerTemp) {
   if ( digitalRead(RELAY_GPIO) != DesireValue ) {
     status += DesireValue ? "Starting" : "Stopping";
     digitalWrite(RELAY_GPIO, DesireValue);
+    fanRunning = DesireValue == HIGH;
   } else {
     status += DesireValue ? "Running" : "Stopped";
   }
@@ -241,7 +256,29 @@ bool isNumber(const String &str) {
 }
 
 
-void handleHTTPDebug() {
+void handleHTTPIndex() {
+
+  File index = SPIFFS.open("/index.html", "r");
+  if (index) {
+      server.streamFile(index, "text/html");
+  } else {
+      server.send(404, "text/plan", "File not found");
+  }
+
+}
+
+void handleHTTPJSON() {
+
   Serial.println(server.client().remoteIP());
-  server.send(200, "text/html", debug);  // return to sender
+  String response = "";
+  response += "{\n";
+  response += "  \"fanStatus\": " + String(fanRunning) + ",\n";
+  response += "  \"lastTemp\": " + String(LastTemp, 2) + ",\n";
+  response += "  \"triggerTemp\": " + String(MAX_TEMP, 2) + ",\n";
+  response += "  \"dataExpired\": " + String(DataExpired) + ",\n";
+  response += "  \"expirationDelay\": " + String(STATE_UPDATE_DELAY) + "\n";
+  response += "  \"debug\": " + String(debug) + "\n";
+  response += "}";
+  server.send(200, "application/json", response);
+
 }
