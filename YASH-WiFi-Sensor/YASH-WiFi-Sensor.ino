@@ -1,6 +1,6 @@
 /* 
 Author: Gilles Auclair
-Date: 2024-11-03
+Date: 2024-11-12
 
 This WiFi modules reads the temperature and humidity
 and provide the info on a webserver with the proper parameters
@@ -32,8 +32,8 @@ SNMPAgent snmp("public", "private");
 WiFiUDP snmpUDP;
 
 const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
-
 #define OID_TEMP ".1"
+#define OID_HUMIDITY ".2"
 
 // Temperature and humidity sensor
 DHT dht(4, DHTTYPE); // GPIO4 = D2
@@ -50,25 +50,29 @@ NTPClient timeClient(ntpUDP);
 
 char debug[50] = {0};
 
+// Date/time of last update
 long lastUpdate = -1;
-const char* TEMP_UNKNOWN = "99.99";
+// Temperature and humidity
+const char* DATA_UNKNOWN = "99.99";
 char strTemperature[6];
+char strHumidity[6];
 
 // Function for SNMP to be able to get the last Temp
 const std::string getTemperature() {
     return strTemperature;
 }
 
-char fullOID[50];
+// Function for SNMP to be able to get the last Temp
+const std::string getHumidity() {
+    return strHumidity;
+}
 
 // Fonction pour construire le OID complet
 const char* getFullOID(const char* subOID) {
+    char fullOID[50];
     snprintf(fullOID, sizeof(fullOID), "%s%s", OID_YASH, subOID);
     return fullOID;
 }
-
-
-//uint32_t humidity = 999;
 
 void setup(void)
 { 
@@ -84,7 +88,8 @@ void setup(void)
   // Preparing the serial debug console
   Serial.begin(9600);
 
-  strcpy(strTemperature, TEMP_UNKNOWN);
+  strcpy(strTemperature, DATA_UNKNOWN);
+  strcpy(strHumidity, DATA_UNKNOWN);
 
   // Connecting to WiFi
   Serial.println("Connecting to WiFi");
@@ -106,21 +111,23 @@ void setup(void)
   // Starting the web server
   Serial.println("Starting WebServer"); 
   server.on("/get_temp/", HTTP_GET, handleHTTPGetTemp);
-  //server.on("/debug/", HTTP_GET, handleHTTPDebug);
+  server.on("/debug/", HTTP_GET, handleHTTPDebug);
   server.begin();
 
   // Starting NTP sync
   timeClient.begin();
-
    
   // Setting up SNMP
   snmp.setUDP(&snmpUDP);  
 
-  // Add temperature to OID
+  // Add temperature and humidity to OID
   const char* temperatureOID = getFullOID(OID_TEMP);
-  strcpy(debug, temperatureOID);
+  //strcpy(debug, temperatureOID);
+  const char* humidityOID = getFullOID(OID_HUMIDITY);
+  //strcpy(debug, humidityOID);
 
   snmp.addDynamicReadOnlyStringHandler(temperatureOID, getTemperature);
+  snmp.addDynamicReadOnlyStringHandler(humidityOID, getHumidity);
 
   // Starting SNMP
   snmp.begin();
@@ -138,33 +145,54 @@ void loop() {
   timeClient.update();
 
   // Reading the temperature
-  bool DataExpired = ( ( timeClient.getEpochTime() - lastUpdate ) > Expiration || strTemperature == TEMP_UNKNOWN );
+  bool DataExpired = ( ( timeClient.getEpochTime() - lastUpdate ) > Expiration || strTemperature == DATA_UNKNOWN || strHumidity == DATA_UNKNOWN );
+  bool DataTempRead = false;
+  bool DataHumRead = false;
   bool DataRead = false;
   float temp;
+  float hum;
 
   if ( DataExpired ) {
 
     Serial.println("Data expired, updating");
     temp = dht.readTemperature() + DHT11_OFFSET;
+    hum = dht.readHumidity();
 
     if (isnan(temp)) {
  
       Serial.println("Error reading temperature");
-      strcpy(strTemperature, TEMP_UNKNOWN);
+      strcpy(strTemperature, DATA_UNKNOWN);
 
     } else {
       
       sprintf(strTemperature, "%.2f", temp);
       Serial.printf("Temperature : ", strTemperature);
 
-      DataRead = true;
-      lastUpdate = timeClient.getEpochTime();
+      DataTempRead = true;
+
+    }
+
+    if (isnan(hum)) {
+ 
+      Serial.println("Error reading humidity");
+      strcpy(strHumidity, DATA_UNKNOWN);
+
+    } else {
+      
+      sprintf(strHumidity, "%.2f", hum);
+      dtostrf(hum, 4, 2, debug);
+      Serial.printf("Humidity : ", strHumidity);
+
+      DataHumRead = true;
 
     }
 
   }
 
-  if ( !DataRead && DataExpired ) { strcpy(strTemperature, TEMP_UNKNOWN); }
+  DataRead = DataTempRead && DataHumRead;
+  if ( DataRead ) { lastUpdate = timeClient.getEpochTime(); }  
+  if ( !DataTempRead && DataExpired ) { strcpy(strTemperature, DATA_UNKNOWN); }
+  if ( !DataHumRead && DataExpired ) { strcpy(strHumidity, DATA_UNKNOWN); }
   
   // Check if there's a web client ready
   server.handleClient();
@@ -184,11 +212,10 @@ void handleHTTPGetTemp() {
   server.send(200, "text/html", strTemperature);  // return to sender
 }
 
-/*
+
 
 void handleHTTPDebug() {
   Serial.println(server.client().remoteIP());
   server.send(200, "text/html", debug);  // return to sender
 }
 
-*/
