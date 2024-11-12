@@ -47,7 +47,7 @@ const char* getFullOID(const char* subOID) {
 #define RELAY_GPIO 4 // GPIO4 = D2
 
 // WiFi Server
-// ESP8266WebServer server(80);
+ESP8266WebServer server(80);
 
 #define MAX_TEMP 21.5            // Température minimum désiré
 #define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
@@ -64,7 +64,7 @@ float LastTemp = 99.99;
 // Date/time of the last change
 long lastChange = -1;
 
-//char debug[50] = {0};
+char debug[100] = {0};
 
 void setup(void)
 { 
@@ -100,8 +100,8 @@ void setup(void)
 
   // Starting the web server
   Serial.println("Starting WebServer"); 
-  //server.on("/debug/", HTTP_GET, handleHTTPDebug);
-  //server.begin();
+  server.on("/debug/", HTTP_GET, handleHTTPDebug);
+  server.begin();
 
   // Starting SNMP
   snmp.setUDP(&snmpUDP); 
@@ -124,7 +124,7 @@ void loop() {
     // Updating the time with NTP
     timeClient.update();
 
-    bool DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY );
+    bool DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY || LastTemp == 99.99 );
 
     if (DataExpired) {
        
@@ -139,10 +139,12 @@ void loop() {
 
       lastChange = timeClient.getEpochTime();
 
+      //snprintf(debug, sizeof(debug), "Temp %s : Last changed: %s", ifTemperature, lastChange);
+
     }
 
     // Check if there's a web client ready
-    // server.handleClient();
+    server.handleClient();
 
     // Handle snmp
     snmp.loop();
@@ -238,9 +240,8 @@ bool isNumber(const String &str) {
 
 }
 
-/*
+
 void handleHTTPDebug() {
   Serial.println(server.client().remoteIP());
   server.send(200, "text/html", debug);  // return to sender
 }
-*/

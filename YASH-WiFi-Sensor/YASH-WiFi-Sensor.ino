@@ -67,9 +67,11 @@ const std::string getHumidity() {
     return strHumidity;
 }
 
+
+
 // Fonction pour construire le OID complet
 const char* getFullOID(const char* subOID) {
-    char fullOID[50];
+    static char fullOID[50];
     snprintf(fullOID, sizeof(fullOID), "%s%s", OID_YASH, subOID);
     return fullOID;
 }
@@ -122,13 +124,10 @@ void setup(void)
 
   // Add temperature and humidity to OID
   const char* temperatureOID = getFullOID(OID_TEMP);
-  //strcpy(debug, temperatureOID);
-  const char* humidityOID = getFullOID(OID_HUMIDITY);
-  //strcpy(debug, humidityOID);
-
   snmp.addDynamicReadOnlyStringHandler(temperatureOID, getTemperature);
+  const char* humidityOID = getFullOID(OID_HUMIDITY);  
   snmp.addDynamicReadOnlyStringHandler(humidityOID, getHumidity);
-
+  
   // Starting SNMP
   snmp.begin();
 
@@ -180,7 +179,7 @@ void loop() {
     } else {
       
       sprintf(strHumidity, "%.2f", hum);
-      dtostrf(hum, 4, 2, debug);
+      //dtostrf(hum, 4, 2, debug);
       Serial.printf("Humidity : ", strHumidity);
 
       DataHumRead = true;
