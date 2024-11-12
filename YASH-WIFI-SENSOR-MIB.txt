@@ -1,0 +1,43 @@
+YASH-WIFI-SENSOR-MIB DEFINITIONS ::= BEGIN
+IMPORTS
+    MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE, enterprises
+        FROM SNMPv2-SMI
+	OBJECT-GROUP
+	    FROM SNMPv2-CONF
+    TEXTUAL-CONVENTION, DisplayString
+        FROM SNMPv2-TC;
+
+yashWifiSensor MODULE-IDENTITY
+    LAST-UPDATED "202411111000Z"
+    ORGANIZATION "Sarius"
+    CONTACT-INFO "gauclair@sarius.ca"
+    DESCRIPTION
+        "MIB for the YASH WiFi Sensor device"
+    REVISION      "202411111000Z"
+    DESCRIPTION
+               "The latest version of this MIB module."
+    ::= { enterprises 1313 }
+
+-- OIDs
+-- Main Groups
+arduinoSensors OBJECT IDENTIFIER ::= { yashWifiSensor 1 }
+temperatureSensor OBJECT IDENTIFIER ::= { arduinoSensors 1 }
+	
+-- Temperature Sensor Objects
+temperature OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE(5))
+    UNITS       "degC"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Current temperature reading in celsius"
+    ::= { temperatureSensor 1 }
+
+temperatureGroup OBJECT-GROUP
+    OBJECTS { temperature }
+    STATUS  current
+    DESCRIPTION
+        "The Temperature Sensor group."
+    ::= { temperatureSensor 2 }
+	
+END
