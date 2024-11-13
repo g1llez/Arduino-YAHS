@@ -1,64 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tableau de bord d'état</title>
-    <style>
-        /* Même styles que précédemment */
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord d'état</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1f2937;
+      color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .status-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .status-card {
+      background-color: #374151;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #4b5563;
+    }
+
+    .status-item:last-child {
+      border-bottom: none;
+    }
+
+    .status-item span {
+      font-weight: bold;
+    }
+
+    h1 {
+      color: #f9fafb;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h2 {
+      color: #e5e7eb;
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #4b5563;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Tableau de bord d'état</h1>
+  <div class="container">
+    <h1>Tableau de bord</h1>
 
-        <div class="status-card">
-            <h2>Ventilateur</h2>
-            <div class="status-item">
-                <span>État :</span>
-                <span id="fan-status">N/A</span>
-            </div>
-            <div class="status-item">
-                <span>Dernière température :</span>
-                <span id="last-temperature">N/A</span>
-            </div>
-            <div class="status-item">
-                <span>Température de déclenchement :</span>
-                <span id="trigger-temperature">N/A</span>
-            </div>
-            <div class="status-item">
-                <span>Données expirées :</span>
-                <span id="data-expired">N/A</span>
-            </div>
-            <div class="status-item">
-                <span>Délai d'expiration :</span>
-                <span id="expiration-delay">N/A</span>
-            </div>
+    <div class="status-cards">
+      <div class="status-card">
+        <h2>Contrôleur de ventilateur</h2>
+        <div class="status-item">
+          <span>État :</span>
+          <span id="fan-status">N/A</span>
         </div>
+        <div class="status-item">
+          <span>Dernière température :</span>
+          <span id="last-temperature">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Dernier update :</span>
+          <span id="last-reading">N/A</span>
+        </div>		
+        <div class="status-item">
+          <span>Température de déclenchement :</span>
+          <span id="trigger-temperature">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Données expirées :</span>
+          <span id="data-expired">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Délai d'expiration :</span>
+          <span id="expiration-delay">N/A</span>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <h2>Capteur</h2>
+        <div class="status-item">
+          <span>Dernière température :</span>
+          <span id="sensor-last-temperature">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Dernière humidité :</span>
+          <span id="sensor-last-humidity">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Dernier update :</span>
+          <span id="sensor-last-reading">N/A</span>
+        </div>		
+        <div class="status-item">
+          <span>Données expirées :</span>
+          <span id="sensor-data-expired">N/A</span>
+        </div>
+        <div class="status-item">
+          <span>Délai d'expiration :</span>
+          <span id="sensor-expiration-delay">N/A</span>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        function updateStatus(data) {
-            document.getElementById('fan-status').textContent = data.fanStatus ? 'En marche' : 'Arrêté';
-            document.getElementById('last-temperature').textContent = data.lastTemperature !== 9999 ? data.lastTemperature + '°C' : 'N/A';
-            document.getElementById('trigger-temperature').textContent = data.triggerTemperature + '°C';
-            document.getElementById('data-expired').textContent = data.dataExpired ? 'Oui' : 'Non';
-            document.getElementById('expiration-delay').textContent = data.expirationDelay + 's';
-        }
+  <script>
+    // Fonction pour mettre à jour les informations du ventilateur
+    function updateFanStatus(data) {
+      document.getElementById("fan-status").textContent = data.fanStatus;
+      document.getElementById("last-temperature").textContent = data.lastTemp.toFixed(2) + " °C";
+	  document.getElementById("last-reading").textContent = data.lastReading;
+      document.getElementById("trigger-temperature").textContent = data.triggerTemp.toFixed(2) + " °C";
+      document.getElementById("data-expired").textContent = data.dataExpired;
+      document.getElementById("expiration-delay").textContent = data.expirationDelay + " sec.";
+    }
 
-        // Récupérer les données du serveur toutes les 5 secondes
-        function fetchStatus() {
-            fetch('/') // Endpoint où le serveur Arduino envoie les données
-                .then(response => response.json())
-                .then(data => {
-                    updateStatus(data);
-                })
-                .catch(error => console.error('Erreur lors de la récupération des données :', error));
-        }
+    // Fonction pour mettre à jour les informations du sensor
+    function updateSensorStatus(data) {
+      document.getElementById("sensor-last-temperature").textContent = data.lastTemp.toFixed(2) + " °C";
+	  document.getElementById("sensor-last-humidity").textContent = data.lastHum.toFixed(2) + " %";
+	  document.getElementById("sensor-last-reading").textContent = data.lastReading;
+      document.getElementById("sensor-data-expired").textContent = data.dataExpired;
+      document.getElementById("sensor-expiration-delay").textContent = data.expirationDelay + " sec.";
+    }
 
-        // Lancer la mise à jour initiale et ensuite toutes les 5 secondes
-        fetchStatus();
-        setInterval(fetchStatus, 5000);
-    </script>
+    // Fonction pour récupérer les données et les mettre à jour
+    function fetchStatusCTRL() {
+      fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+          updateFanStatus(data);
+        })
+        .catch(error => {
+          console.error('Erreur lors de la récupération des données :', error);
+        });
+    }
+
+    function fetchStatusSensor() {
+      fetch('http://172.16.20.106/api/status')
+        .then(response => response.json())
+        .then(data => {
+          updateSensorStatus(data);
+        })
+        .catch(error => {
+          console.error('Erreur lors de la récupération des données :', error);
+        });
+    }
+
+    // Mise à jour toutes les 5 secondes
+    setInterval(fetchStatusCTRL, 5000);
+	setInterval(fetchStatusSensor, 5000);
+
+    // Appel initial pour charger les données
+    fetchStatusCTRL();
+	fetchStatusSensor();
+	
+  </script>
 </body>
 </html>

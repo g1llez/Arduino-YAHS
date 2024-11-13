@@ -10,7 +10,7 @@ and provide the info on a webserver with the proper parameters
 #include "params.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#include <NTPClient.h>
+#include <time.h>
 #include <WiFiUdp.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
@@ -38,12 +38,12 @@ const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
 // Temperature and humidity sensor
 DHT dht(4, DHTTYPE); // GPIO4 = D2
 
-// NTP Config
-WiFiUDP ntpUDP;
-
-// By default 'pool.ntp.org' is used with 60 seconds update interval and
-// no offset
-NTPClient timeClient(ntpUDP);
+// NTP and Timezone config
+#define MY_NTP_SERVER "ca.pool.ntp.org"           
+#define MY_TZ "EST+5EDT,M3.2.0/2,M11.1.0/2"   
+time_t timeNow;
+time_t timeLastUpdate;
+tm tmLastUpdate;
 
 // Set expiration on data read in seconds
 #define Expiration 5
@@ -51,7 +51,9 @@ NTPClient timeClient(ntpUDP);
 char debug[50] = {0};
 
 // Date/time of last update
-long lastUpdate = -1;
+//long lastUpdate = -1;
+bool DataExpired = true;
+
 // Temperature and humidity
 const char* DATA_UNKNOWN = "99.99";
 char strTemperature[6];
@@ -66,8 +68,6 @@ const std::string getTemperature() {
 const std::string getHumidity() {
     return strHumidity;
 }
-
-
 
 // Fonction pour construire le OID complet
 const char* getFullOID(const char* subOID) {
@@ -90,6 +90,7 @@ void setup(void)
   // Preparing the serial debug console
   Serial.begin(9600);
 
+  // Initial state of data unknown
   strcpy(strTemperature, DATA_UNKNOWN);
   strcpy(strHumidity, DATA_UNKNOWN);
 
@@ -112,12 +113,15 @@ void setup(void)
 
   // Starting the web server
   Serial.println("Starting WebServer"); 
+  
   server.on("/get_temp/", HTTP_GET, handleHTTPGetTemp);
   server.on("/debug/", HTTP_GET, handleHTTPDebug);
+  server.on("/api/status", HTTP_GET, handleHTTPJSON);
+  
   server.begin();
 
-  // Starting NTP sync
-  timeClient.begin();
+  // Set timezone
+  configTime(MY_TZ, MY_NTP_SERVER);
    
   // Setting up SNMP
   snmp.setUDP(&snmpUDP);  
@@ -140,17 +144,19 @@ void setup(void)
 
 void loop() {
 
-  // Updating the time
-  timeClient.update();
 
-  // Reading the temperature
-  bool DataExpired = ( ( timeClient.getEpochTime() - lastUpdate ) > Expiration || strTemperature == DATA_UNKNOWN || strHumidity == DATA_UNKNOWN );
+  // Updating the time
+  time(&timeNow);
+
+  // Checking if the data are expired or unknown
+  DataExpired = ( ( timeNow - timeLastUpdate ) > Expiration || strTemperature == DATA_UNKNOWN || strHumidity == DATA_UNKNOWN );
   bool DataTempRead = false;
   bool DataHumRead = false;
   bool DataRead = false;
   float temp;
   float hum;
 
+  // Updating if required
   if ( DataExpired ) {
 
     Serial.println("Data expired, updating");
@@ -189,7 +195,8 @@ void loop() {
   }
 
   DataRead = DataTempRead && DataHumRead;
-  if ( DataRead ) { lastUpdate = timeClient.getEpochTime(); }  
+  
+  if ( DataRead ) { time(&timeNow); localtime_r(&timeNow, &tmLastUpdate); }  
   if ( !DataTempRead && DataExpired ) { strcpy(strTemperature, DATA_UNKNOWN); }
   if ( !DataHumRead && DataExpired ) { strcpy(strHumidity, DATA_UNKNOWN); }
   
@@ -218,3 +225,30 @@ void handleHTTPDebug() {
   server.send(200, "text/html", debug);  // return to sender
 }
 
+void handleHTTPJSON() {
+
+  Serial.println(server.client().remoteIP());
+
+  char strDate[21];
+  char strFanRunning[4];
+  char strDataExpired[4];
+
+  strcpy(strDataExpired, DataExpired ? "Oui" : "Non");
+
+  sprintf(strDate, "%4d-%02d-%02d %02d:%02d:%02d", tmLastUpdate.tm_year + 1900, tmLastUpdate.tm_mon + 1, tmLastUpdate.tm_mday, tmLastUpdate.tm_hour, tmLastUpdate.tm_min, tmLastUpdate.tm_sec);
+
+  String response = "";
+  response += "{\n";
+  response += "  \"lastTemp\": " + String(strTemperature) + ",\n";  
+  response += "  \"lastHum\": " + String(strHumidity) + ",\n";  
+  response += "  \"lastReading\": \"" + String(strDate) + "\",\n";
+  response += "  \"dataExpired\": \"" + String(strDataExpired) + "\",\n";
+  response += "  \"expirationDelay\": " + String(Expiration) + "\n";
+  response += "}";
+
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type"); 
+  server.send(200, "application/json", response);
+
+}

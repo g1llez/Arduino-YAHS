@@ -11,12 +11,13 @@ activate
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
-#include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <Arduino_SNMP_Manager.h>
 #include "params.h"
 #include <FS.h>
+//#include <TimeLib.h>
+#include <time.h>
 
 //const char* ssid = "MySSID"; 
 //const char* password = "MyPass"; 
@@ -55,17 +56,15 @@ ESP8266WebServer server(80);
 #define MAX_TEMP 21.5            // Température minimum désiré
 #define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
 
-// NTP Config
-WiFiUDP ntpUDP;
-
-// By default 'pool.ntp.org' is used with 60 seconds update interval and
-// no offset
-NTPClient timeClient(ntpUDP);
+// NTP and Timezone config
+#define MY_NTP_SERVER "ca.pool.ntp.org"           
+#define MY_TZ "EST+5EDT,M3.2.0/2,M11.1.0/2"   
+time_t timeNow;
+time_t timeLastUpdate;
+tm tmLastUpdate;
 
 // Last temperature reading
 float LastTemp = 99.99;
-// Date/time of the last change
-long lastChange = -1;
 // Fan status
 bool fanRunning = false;
 bool DataExpired = true;
@@ -106,15 +105,14 @@ void setup(void)
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
 
-  // Starting NTP time sync
-  Serial.println("[NTP] Starting NTP");
-  timeClient.begin();
-
   // Starting the web server
   Serial.println("Starting WebServer"); 
   server.on("/index.html", HTTP_GET, handleHTTPIndex);
-  server.on("/", HTTP_GET, handleHTTPJSON);
+  server.on("/api/status", HTTP_GET, handleHTTPJSON);
   server.begin();
+
+  // Set timezone
+  configTime(MY_TZ, MY_NTP_SERVER);
 
   // Starting SNMP
   snmp.setUDP(&snmpUDP); 
@@ -134,12 +132,12 @@ void setup(void)
 
 void loop() {
 
-    // Updating the time with NTP
-    timeClient.update();
-
     int LastTempInt = (int)(LastTemp * 100);
 
-    DataExpired = ( ( timeClient.getEpochTime() - lastChange ) > STATE_UPDATE_DELAY || LastTempInt == 9999 );
+    // Updating the time
+    time(&timeNow);
+
+    DataExpired = ( ( timeNow - timeLastUpdate ) > STATE_UPDATE_DELAY || LastTempInt == 9999 );
     
     if (DataExpired) {
        
@@ -152,7 +150,9 @@ void loop() {
       LastTemp = atof(ifTemperature);
       updateFan(LastTemp, MAX_TEMP);
 
-      lastChange = timeClient.getEpochTime();
+      // Updating the last updated datetime
+      time(&timeNow); 
+      localtime_r(&timeNow, &tmLastUpdate);
 
     }
 
@@ -270,14 +270,24 @@ void handleHTTPIndex() {
 void handleHTTPJSON() {
 
   Serial.println(server.client().remoteIP());
+
+  char strDate[21];
+  char strFanRunning[4];
+  char strDataExpired[4];
+
+  strcpy(strFanRunning, fanRunning ? "On" : "Off");
+  strcpy(strDataExpired, DataExpired ? "Oui" : "Non");
+
+  sprintf(strDate, "%4d-%02d-%02d %02d:%02d:%02d", tmLastUpdate.tm_year + 1900, tmLastUpdate.tm_mon + 1, tmLastUpdate.tm_mday, tmLastUpdate.tm_hour, tmLastUpdate.tm_min, tmLastUpdate.tm_sec);
+
   String response = "";
   response += "{\n";
-  response += "  \"fanStatus\": " + String(fanRunning) + ",\n";
-  response += "  \"lastTemp\": " + String(LastTemp, 2) + ",\n";
+  response += "  \"fanStatus\": \"" + String(strFanRunning) + "\",\n";
+  response += "  \"lastTemp\": " + String(LastTemp, 2) + ",\n";  
+  response += "  \"lastReading\": \"" + String(strDate) + "\",\n";
   response += "  \"triggerTemp\": " + String(MAX_TEMP, 2) + ",\n";
-  response += "  \"dataExpired\": " + String(DataExpired) + ",\n";
+  response += "  \"dataExpired\": \"" + String(strDataExpired) + "\",\n";
   response += "  \"expirationDelay\": " + String(STATE_UPDATE_DELAY) + "\n";
-  response += "  \"debug\": " + String(debug) + "\n";
   response += "}";
   server.send(200, "application/json", response);
 
