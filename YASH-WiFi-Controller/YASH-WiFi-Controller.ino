@@ -136,7 +136,7 @@ void loop() {
 
     // Updating the time
     time(&timeNow);
-
+    snprintf(debug, sizeof(debug), "now: %1u, lastupdate: %1u, diff: %1u", (unsigned long)timeNow, (unsigned long)timeLastUpdate, (unsigned long)(timeNow - timeLastUpdate));
     DataExpired = ( ( timeNow - timeLastUpdate ) > STATE_UPDATE_DELAY || LastTempInt == 9999 );
     
     if (DataExpired) {
@@ -152,6 +152,7 @@ void loop() {
 
       // Updating the last updated datetime
       time(&timeNow); 
+      time(&timeLastUpdate);
       localtime_r(&timeNow, &tmLastUpdate);
 
     }
@@ -287,7 +288,8 @@ void handleHTTPJSON() {
   response += "  \"lastReading\": \"" + String(strDate) + "\",\n";
   response += "  \"triggerTemp\": " + String(MAX_TEMP, 2) + ",\n";
   response += "  \"dataExpired\": \"" + String(strDataExpired) + "\",\n";
-  response += "  \"expirationDelay\": " + String(STATE_UPDATE_DELAY) + "\n";
+  response += "  \"expirationDelay\": " + String(STATE_UPDATE_DELAY) + ",\n";
+  response += "  \"debug\": \"" + String(debug) + "\"\n";
   response += "}";
   server.send(200, "application/json", response);
 

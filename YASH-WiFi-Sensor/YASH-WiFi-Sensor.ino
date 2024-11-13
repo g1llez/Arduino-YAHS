@@ -196,7 +196,7 @@ void loop() {
 
   DataRead = DataTempRead && DataHumRead;
   
-  if ( DataRead ) { time(&timeNow); localtime_r(&timeNow, &tmLastUpdate); }  
+  if ( DataRead ) { time(&timeNow); time(&timeLastUpdate); localtime_r(&timeNow, &tmLastUpdate); }  
   if ( !DataTempRead && DataExpired ) { strcpy(strTemperature, DATA_UNKNOWN); }
   if ( !DataHumRead && DataExpired ) { strcpy(strHumidity, DATA_UNKNOWN); }
   
