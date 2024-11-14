@@ -31,7 +31,7 @@ ESP8266WebServer server(80);
 SNMPAgent snmp("public", "private");
 WiFiUDP snmpUDP;
 
-const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
+const char* OID_YASH = ".1.3.6.1.4.1.1313.1";
 #define OID_TEMP ".1"
 #define OID_HUMIDITY ".2"
 

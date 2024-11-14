@@ -1,10 +1,10 @@
 YASH-WIFI-SENSOR-MIB DEFINITIONS ::= BEGIN
 IMPORTS
-    MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE, enterprises
+    MODULE-IDENTITY, OBJECT-TYPE, enterprises
         FROM SNMPv2-SMI
 	OBJECT-GROUP
 	    FROM SNMPv2-CONF
-    TEXTUAL-CONVENTION, DisplayString
+    DisplayString
         FROM SNMPv2-TC;
 
 yashWifiSensor MODULE-IDENTITY
@@ -21,7 +21,6 @@ yashWifiSensor MODULE-IDENTITY
 -- OIDs
 -- Main Groups
 arduinoSensors OBJECT IDENTIFIER ::= { yashWifiSensor 1 }
-temperatureSensor OBJECT IDENTIFIER ::= { arduinoSensors 1 }
 	
 -- Temperature Sensor Objects
 temperature OBJECT-TYPE
@@ -31,13 +30,23 @@ temperature OBJECT-TYPE
     STATUS      current
     DESCRIPTION
         "Current temperature reading in celsius"
-    ::= { temperatureSensor 1 }
+    ::= { arduinoSensors 1 }
 
-temperatureGroup OBJECT-GROUP
-    OBJECTS { temperature }
+-- Humidity Sensor Objects
+humidity OBJECT-TYPE
+    SYNTAX      DisplayString (SIZE(5))
+    UNITS       "%"
+    MAX-ACCESS  read-only
+    STATUS      current
+    DESCRIPTION
+        "Current humidity reading in %"
+    ::= { arduinoSensors 2 }
+	
+sensorGroup OBJECT-GROUP
+    OBJECTS { temperature, humidity }
     STATUS  current
     DESCRIPTION
-        "The Temperature Sensor group."
-    ::= { temperatureSensor 2 }
-	
+        "The Sensor group."
+    ::= { yashWifiSensor 2 }
+
 END

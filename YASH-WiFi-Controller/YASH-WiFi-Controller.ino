@@ -210,11 +210,12 @@ void updateFan(float CurrentTemp, float TriggerTemp) {
 
   if ( digitalRead(RELAY_GPIO) != DesireValue ) {
     status += DesireValue ? "Starting" : "Stopping";
-    digitalWrite(RELAY_GPIO, DesireValue);
-    fanRunning = DesireValue == HIGH;
+    digitalWrite(RELAY_GPIO, DesireValue);    
   } else {
     status += DesireValue ? "Running" : "Stopped";
   }
+
+  fanRunning = DesireValue == HIGH;
   
   Serial.println(status);
 
