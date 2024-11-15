@@ -11,7 +11,6 @@ and provide the info on a webserver with the proper parameters
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <time.h>
-#include <WiFiUdp.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <ArduinoOTA.h>
@@ -31,9 +30,10 @@ ESP8266WebServer server(80);
 SNMPAgent snmp("public", "private");
 WiFiUDP snmpUDP;
 
-const char* OID_YASH = ".1.3.6.1.4.1.1313.1";
-#define OID_TEMP ".1"
-#define OID_HUMIDITY ".2"
+const char* OID_YASH = ".1.3.6.1.4.1.1313";
+#define OID_TEMP ".1.1"
+#define OID_HUMIDITY ".1.2"
+#define OID_SENSOR_GROUP ".2"
 
 // Temperature and humidity sensor
 DHT dht(4, DHTTYPE); // GPIO4 = D2
@@ -46,7 +46,7 @@ time_t timeLastUpdate;
 tm tmLastUpdate;
 
 // Set expiration on data read in seconds
-#define Expiration 5
+#define Expiration 30
 
 char debug[50] = {0};
 
@@ -64,9 +64,15 @@ const std::string getTemperature() {
     return strTemperature;
 }
 
-// Function for SNMP to be able to get the last Temp
+// Function for SNMP to be able to get the last humidity
 const std::string getHumidity() {
     return strHumidity;
+}
+
+// Function for SNMP to be able to get the sensor group information
+const std::string getGroupSensor() {
+    std::string result = "Temperature: " + std::string(strTemperature) + "\nHumidity: " + std::string(strHumidity);
+    return result;
 }
 
 // Fonction pour construire le OID complet
@@ -124,16 +130,21 @@ void setup(void)
   configTime(MY_TZ, MY_NTP_SERVER);
    
   // Setting up SNMP
-  snmp.setUDP(&snmpUDP);  
+  snmp.setUDP(&snmpUDP);
+
+  // Starting SNMP
+  snmp.begin();
 
   // Add temperature and humidity to OID
   const char* temperatureOID = getFullOID(OID_TEMP);
+  
   snmp.addDynamicReadOnlyStringHandler(temperatureOID, getTemperature);
   const char* humidityOID = getFullOID(OID_HUMIDITY);  
   snmp.addDynamicReadOnlyStringHandler(humidityOID, getHumidity);
-  
-  // Starting SNMP
-  snmp.begin();
+  const char* groupOID = getFullOID(OID_SENSOR_GROUP);  
+  snmp.addDynamicReadOnlyStringHandler(groupOID, getGroupSensor);
+
+  snmp.sortHandlers();
 
   // Setting Arduino OTA
   ArduinoOTA.begin();
@@ -201,14 +212,18 @@ void loop() {
   if ( !DataHumRead && DataExpired ) { strcpy(strHumidity, DATA_UNKNOWN); }
   
   // Check if there's a web client ready
+  Serial.println("handle client start");
   server.handleClient();
+  Serial.println("handle client stop");
 
   // Handle SNMP
+  Serial.println("handle snmpo start");
   snmp.loop();
-
+  Serial.println("handle snmpo stop");
   // Handling Arduino OTA
+  Serial.println("handle ota start");
   ArduinoOTA.handle();
-
+  Serial.println("handle ota stop");
   delay(1000);
 
 }

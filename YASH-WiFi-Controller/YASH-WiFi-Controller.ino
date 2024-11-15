@@ -30,7 +30,7 @@ const int snmpVersion = 1; // SNMP Version 1 = 0, SNMP Version 2 = 1
 // IPAddress myIP(192, 168, 0, 10);
 // IPAddress remoteIP(192, 168, 0, 11);
 const char* community = "public";
-const char* OID_YASH = ".1.3.6.1.4.1.1313.1.1";
+const char* OID_YASH = ".1.3.6.1.4.1.1313.1";
 #define OID_TEMP ".1"
 WiFiUDP snmpUDP;
 
@@ -54,7 +54,7 @@ const char* getFullOID(const char* subOID) {
 ESP8266WebServer server(80);
 
 #define MAX_TEMP 21.5            // Température minimum désiré
-#define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
+#define STATE_UPDATE_DELAY 30   // Délais minimum avant un nouveau changement d'état
 
 // NTP and Timezone config
 #define MY_NTP_SERVER "ca.pool.ntp.org"           
@@ -137,7 +137,12 @@ void loop() {
     // Updating the time
     time(&timeNow);
     snprintf(debug, sizeof(debug), "now: %1u, lastupdate: %1u, diff: %1u", (unsigned long)timeNow, (unsigned long)timeLastUpdate, (unsigned long)(timeNow - timeLastUpdate));
+    
+    // Data are expired if the delay has pass or if the last temp in unknown
     DataExpired = ( ( timeNow - timeLastUpdate ) > STATE_UPDATE_DELAY || LastTempInt == 9999 );
+
+    // Make sure we have at least a 5 seconds delay between the tries
+    DataExpired = DataExpired && ( ( timeNow - timeLastUpdate ) > 5 );
     
     if (DataExpired) {
        
