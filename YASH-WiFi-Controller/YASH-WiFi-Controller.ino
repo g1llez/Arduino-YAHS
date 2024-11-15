@@ -54,7 +54,7 @@ const char* getFullOID(const char* subOID) {
 ESP8266WebServer server(80);
 
 #define MAX_TEMP 21.5            // Température minimum désiré
-#define STATE_UPDATE_DELAY 30   // Délais minimum avant un nouveau changement d'état
+#define STATE_UPDATE_DELAY 300   // Délais minimum avant un nouveau changement d'état
 
 // NTP and Timezone config
 #define MY_NTP_SERVER "ca.pool.ntp.org"           
